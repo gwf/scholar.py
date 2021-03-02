@@ -634,6 +634,10 @@ class ScholarQuery(object):
         # in attrs, see below).
         self.num_results = None
 
+        # The starting offset of the results (i.e, the number of
+        # initial results to skip).
+        self.start = None
+
         # Queries may have global result attributes, similar to
         # per-article attributes in ScholarArticle. The exact set of
         # attributes may differ by query type, but they all share the
@@ -644,6 +648,10 @@ class ScholarQuery(object):
         self.num_results = ScholarUtils.ensure_int(
             num_page_results,
             'maximum number of results on page must be numeric')
+
+    def set_start(self, start):
+        self.start = ScholarUtils.ensure_int(start,
+            'starting offset for results must be numeric')
 
     def get_url(self):
         """
@@ -746,6 +754,7 @@ class SearchScholarQuery(ScholarQuery):
     configure on the Scholar website, in the advanced search options.
     """
     SCHOLAR_QUERY_URL = ScholarConf.SCHOLAR_SITE + '/scholar?' \
+        + '%(start)s' \
         + 'as_q=%(words)s' \
         + '&as_epq=%(phrase)s' \
         + '&as_oq=%(words_some)s' \
@@ -763,6 +772,7 @@ class SearchScholarQuery(ScholarQuery):
     def __init__(self):
         ScholarQuery.__init__(self)
         self._add_attribute_type('num_results', 'Results', 0)
+        self.start = None # Starting offset
         self.words = None # The default search behavior
         self.words_some = None # At least one of those words
         self.words_none = None # None of these words
@@ -773,6 +783,10 @@ class SearchScholarQuery(ScholarQuery):
         self.timeframe = [None, None]
         self.include_patents = True
         self.include_citations = True
+
+    def set_start(self, start):
+        """Sets starting offset for returned reslts."""
+        self.start = start
 
     def set_words(self, words):
         """Sets words that *all* must be found in the result."""
@@ -861,6 +875,9 @@ class SearchScholarQuery(ScholarQuery):
         # server will not recognize them:
         urlargs['num'] = ('&num=%d' % self.num_results
                           if self.num_results is not None else '')
+
+        urlargs['start'] = ('start=%d&' % self.start
+                          if self.start is not None else '')
 
         return self.SCHOLAR_QUERY_URL % urlargs
 
@@ -1191,6 +1208,8 @@ scholar.py -c 5 -a "albert einstein" -t --none "quantum theory" --after 1970"""
                      help='Do not search, just use articles in given cluster ID')
     group.add_option('-c', '--count', type='int', default=None,
                      help='Maximum number of results')
+    group.add_option('-S', '--start', type='int', default=None,
+                     help='Starting offset of results')
     parser.add_option_group(group)
 
     group = optparse.OptionGroup(parser, 'Output format',
@@ -1289,6 +1308,10 @@ scholar.py -c 5 -a "albert einstein" -t --none "quantum theory" --after 1970"""
     if options.count is not None:
         options.count = min(options.count, ScholarConf.MAX_PAGE_RESULTS)
         query.set_num_page_results(options.count)
+
+    if options.start is not None:
+        options.start = max(options.start, 0)
+        query.set_start(options.start)
 
     querier.send_query(query)
 
